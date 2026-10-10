@@ -34,14 +34,16 @@ kubectl config use-context "k3d-${cluster_name}"
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply --server-side --force-conflicts -n argocd \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-kubectl wait --for=condition=Available deployment --all -n argocd --timeout=300s
+# The first run has to pull several large public images into a fresh VM. Give
+# that cold start enough time on slower hosts and networks.
+kubectl wait --for=condition=Available deployment --all -n argocd --timeout=900s
 
 sed "s|__GIT_REPO_URL__|${repo_url}|g" "$repo_root/p3/confs/argocd/application.yaml" | kubectl apply -f -
 
 # Registering an Application is asynchronous. Wait until Argo CD has fetched
 # the repository and completed its first sync before looking for its workload.
 wait_for_app_status() {
-  local jsonpath="$1" expected="$2" description="$3" deadline=$((SECONDS + 300)) value
+  local jsonpath="$1" expected="$2" description="$3" deadline=$((SECONDS + 600)) value
   while (( SECONDS < deadline )); do
     value="$(kubectl get application playground -n argocd -o "jsonpath=${jsonpath}" 2>/dev/null || true)"
     if [[ "$value" == "$expected" ]]; then
@@ -56,7 +58,7 @@ wait_for_app_status() {
 
 wait_for_app_status '{.status.sync.status}' Synced 'Synced'
 wait_for_app_status '{.status.health.status}' Healthy 'Healthy'
-kubectl wait --for=condition=Available deployment/playground -n dev --timeout=300s
+kubectl wait --for=condition=Available deployment/playground -n dev --timeout=600s
 kubectl get applications -n argocd
 kubectl get pods,services -n dev
 echo "App endpoint: http://localhost:8888/"
