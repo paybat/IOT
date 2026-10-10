@@ -1,0 +1,39 @@
+# P1: one K3s server and one agent. Override LOGIN team login differs.
+login = "hidriouc"
+raise "LOGIN must not be empty" if login.empty?
+cluster_token = ENV.fetch("K3S_TOKEN", "iot-p1-lab-token-change-me")
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-24.04"
+  config.vm.synced_folder ".", "/vagrant", disabled: false
+  config.vm.define "#{login}S", primary: true do |server|
+    server.vm.hostname = "#{login}S"
+    server.vm.network "private_network", ip: "192.168.56.110"
+    server.vm.provider "virtualbox" do |vb|
+      vb.name = "#{login}S"
+      # Current K3s docs require 2 CPUs and 2 GiB for a server node.
+      vb.cpus = 2
+      vb.memory = 2048
+    end
+    server.vm.provision "shell", path: "scripts/install-server.sh", env: {
+      "K3S_TOKEN" => cluster_token,
+      "K3S_NODE_IP" => "192.168.56.110",
+      "K3S_NODE_NAME" => "#{login}s"
+    }
+  end
+  config.vm.define "#{login}SW" do |worker|
+    worker.vm.hostname = "#{login}SW"
+    worker.vm.network "private_network", ip: "192.168.56.111"
+    worker.vm.provider "virtualbox" do |vb|
+      vb.name = "#{login}SW"
+      vb.cpus = 1
+      vb.memory = 1024
+    end
+    worker.vm.provision "shell", path: "scripts/install-agent.sh", env: {
+      "K3S_TOKEN" => cluster_token,
+      "K3S_SERVER_IP" => "192.168.56.110",
+      "K3S_NODE_IP" => "192.168.56.111",
+      "K3S_NODE_NAME" => "#{login}sw"
+    }
+  end
+end

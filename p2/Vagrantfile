@@ -1,0 +1,22 @@
+# P2: one K3s server hosts three web apps behind an Ingress.
+login = ENV.fetch("LOGIN", "hidriouc").downcase.gsub(/[^a-z0-9-]/, "-")
+raise "LOGIN must not be empty" if login.empty?
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-24.04"
+  config.vm.synced_folder ".", "/vagrant", disabled: false
+  config.vm.define "#{login}S", primary: true do |server|
+    server.vm.hostname = "#{login}S"
+    server.vm.network "private_network", ip: "192.168.56.110"
+    server.vm.provider "virtualbox" do |vb|
+      vb.name = "#{login}S-p2"
+      # Current K3s docs require 2 CPUs and 2 GiB for a server node.
+      vb.cpus = 2
+      vb.memory = 2048
+    end
+    server.vm.provision "shell", path: "scripts/install-k3s.sh", env: {
+      "K3S_NODE_IP" => "192.168.56.110",
+      "K3S_NODE_NAME" => "#{login}s"
+    }
+    server.vm.provision "shell", path: "scripts/deploy-apps.sh"
+  end
+end
