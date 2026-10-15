@@ -1,16 +1,15 @@
-# P3 follows the subject's requirement to run K3d inside a virtual machine.
-login = ENV.fetch("LOGIN", "hidriouc").downcase.gsub(/[^a-z0-9-]/, "-")
-raise "LOGIN must not be empty" if login.empty?
+
+login = "hidriouc"
 
 Vagrant.configure("2") do |config|
   config.vm.box = "bento/ubuntu-24.04"
   config.vm.hostname = "#{login}P3"
-  # Share the repository root so the scripts can find p1/p2/p3 consistently.
+  
   config.vm.synced_folder "..", "/workspace"
 
-  # K3d's nodes run as Docker containers inside this guest VM.
   config.vm.network "forwarded_port", guest: 8888, host: 8888,
                     host_ip: "127.0.0.1", auto_correct: false
+                    
   config.vm.network "forwarded_port", guest: 8080, host: 8080,
                     host_ip: "127.0.0.1", auto_correct: false
 

@@ -10,15 +10,23 @@ if ! docker info >/dev/null 2>&1; then
   echo "Docker is unavailable to this user. Run install-tools.sh, then log out and back in (or use a Docker-enabled session)." >&2
   exit 1
 fi
+
 if [[ -z "$repo_url" ]]; then
   echo "Set GIT_REPO_URL to the public HTTPS URL of your GitHub repository, e.g.:" >&2
   echo "  GIT_REPO_URL=https://github.com/LOGIN/REPOSITORY.git bash p3/scripts/create-cluster.sh" >&2
   exit 1
 fi
+
 if [[ ! "$repo_url" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]]; then
   echo "GIT_REPO_URL must be a public HTTPS GitHub repository URL, optionally ending in .git." >&2
   exit 1
 fi
+
+if ! git ls-remote "$repo_url" HEAD >/dev/null 2>&1; then
+  echo "Repository must be public and accessible." >&2
+  exit 1
+fi
+
 for tool in k3d kubectl; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "Required command '$tool' was not found. Run p3/scripts/install-tools.sh first." >&2
