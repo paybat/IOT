@@ -67,6 +67,13 @@ wait_for_app_status() {
 wait_for_app_status '{.status.sync.status}' Synced 'Synced'
 wait_for_app_status '{.status.health.status}' Healthy 'Healthy'
 kubectl wait --for=condition=Available deployment/playground -n dev --timeout=600s
+
+# Keep the Argo CD UI reachable through the parent VM's forwarded port.
+if ! pgrep -af 'kubectl port-forward --address 0.0.0.0 -n argocd svc/argocd-server 8080:443' >/dev/null; then
+  nohup kubectl port-forward --address 0.0.0.0 -n argocd svc/argocd-server 8080:443 \
+    >/tmp/iot-argocd-port-forward.log 2>&1 </dev/null &
+fi
+
 kubectl get applications -n argocd
 kubectl get pods,services -n dev
 echo "App endpoint: http://localhost:8888/"

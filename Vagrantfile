@@ -3,9 +3,9 @@ login = "hidriouc"
 
 Vagrant.configure("2") do |config|
   config.vm.box = "bento/ubuntu-24.04"
-  config.vm.hostname = "#{login}P3"
+  config.vm.hostname = "#{login}IOTParent"
   
-  config.vm.synced_folder "..", "/workspace"
+  config.vm.synced_folder ".", "/workspace"
 
   config.vm.network "forwarded_port", guest: 8888, host: 8888,
                     host_ip: "127.0.0.1", auto_correct: false
@@ -14,10 +14,12 @@ Vagrant.configure("2") do |config|
                     host_ip: "127.0.0.1", auto_correct: false
 
   config.vm.provider "virtualbox" do |vb|
-    vb.name = "#{login}P3"
+    vb.name = "#{login}IOTParent"
+    # P1/P2 run as nested VirtualBox guests. Keep the parent allocation fixed.
     vb.cpus = 2
-    vb.memory = 4096
+    vb.memory = 3072
+    vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
   end
 
-  config.vm.provision "shell", path: "scripts/install-tools.sh"
+  config.vm.provision "shell", path: "p3/scripts/install-tools.sh"
 end

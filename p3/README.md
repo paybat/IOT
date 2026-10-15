@@ -1,43 +1,50 @@
 # P3 — K3d and Argo CD in a VM
 
-The subject requires P3 to run on a virtual machine. This Vagrant environment
-creates an Ubuntu guest; Docker, K3d, Kubernetes, and Argo CD all run inside
-that guest. Vagrant forwards the app at guest port `8888` to host port `8888`.
-Argo CD runs in the `argocd` namespace and watches this public GitHub
-repository. It syncs `p3/confs/app` into `dev`; pushing an image tag change to
-Git updates the running application.
+The root Vagrant machine is the parent VM for this repository. Docker, K3d,
+Kubernetes, and Argo CD run directly inside it, as the subject says Part 3 is
+without another Vagrant machine. P1 and P2 launch nested Vagrant guests from
+the parent. Argo CD runs in the `argocd`
+namespace and watches this public GitHub repository. It syncs
+`p3/confs/app` into `dev`; pushing an image tag change to Git updates the
+running application.
 
-P1 and P2 also use their own Vagrant VMs. They each use `192.168.56.110`, so
-run one part at a time. P3 needs about 4 GB of guest RAM; halt the other lab
-VMs before starting it on a host with limited memory.
+Start the parent from the repository root on the host with `vagrant up`, then
+connect using `vagrant ssh`. The repository is mounted at `/workspace`. The
+parent VM allocates 2 CPUs and 3 GB RAM. P1 and P2 each use
+`192.168.56.110`; run those parts separately, and stop the K3d cluster while
+either nested lab is running to keep memory use within the parent allocation.
+Run the parent `vagrant up`, `vagrant reload`, and `vagrant ssh` commands on
+the host only. Inside `/workspace/p3`, use `kubectl` and `k3d`; a `vagrant ssh`
+there would target the root parent project again and VirtualBox would reject
+the different host and guest user IDs.
 
 ## 1. Publish the repository
 
 Create a **public** GitHub repository whose name contains a team member's
-login, add this project, and push the `p3` directory. Argo CD needs public
-read access so no deploy key or token is required. The GitHub URL used below
-must point to that repository, for example
+login, then push this repository's contents. Argo CD needs public read access
+so no deploy key or token is required. The GitHub URL used below must point
+to that repository, for example
 `https://github.com/LOGIN/iot-LOGIN.git`.
 
 ## 2. Start the P3 VM and install tools
 
-From this directory, start the VM. Vagrant runs the tool installer during
-provisioning:
+From the repository root on the host, start the parent VM. Its provisioner
+installs Docker, K3d, kubectl, Git, Vagrant, and VirtualBox:
 
 ```sh
 vagrant up
+vagrant reload  # once after first provision, to load VirtualBox's kernel module
+vagrant ssh
 ```
 
-The VM has 2 CPUs and 4 GB RAM. Inside the VM, confirm Docker access and move
-to the shared project directory:
+Inside the parent, confirm Docker access and move to the shared project directory:
 
 ```sh
 docker info
 cd /workspace
 ```
 
-Open the VM shell with `vagrant ssh` from another host terminal. Commands
-below that use `kubectl` or `k3d` run in that VM shell.
+Commands below that use `kubectl` or `k3d` run in this parent VM shell.
 
 The installer adds the `vagrant` user to the Docker group. Start a fresh SSH
 session after provisioning if `docker info` reports a permission error.
@@ -67,7 +74,7 @@ kubectl get applications -n argocd
 kubectl get pods,services -n dev
 ```
 
-From the host machine, check the app through Vagrant's forwarded port:
+From the host machine, check the app through the parent's forwarded port:
 
 ```sh
 curl http://localhost:8888/
@@ -135,15 +142,12 @@ browser/curl -> localhost:8888 -> K3d port map -> NodePort 30088
 
 ## Cleanup
 
-```sh
-vagrant halt
-```
+Run `vagrant halt` from the repository root on the host to stop the parent VM.
 
 To remove the VM and its local data as well:
 
-```sh
-vagrant destroy
-```
+Run `vagrant destroy` from the repository root on the host to remove the
+parent VM and its local data.
 
 To delete only the K3d cluster while keeping the VM:
 

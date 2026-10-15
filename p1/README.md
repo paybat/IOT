@@ -1,14 +1,16 @@
 # P1 — K3s with Vagrant
 
-This part creates two Ubuntu VMs on a private network. The `S` machine runs
-the K3s control plane; `SW` runs the K3s agent. Vagrant provisions them over
+Run these commands inside the parent VM, from `/workspace/p1`. This part
+creates two nested Ubuntu VMs on a private network. The `S` machine runs the
+K3s control plane; `SW` runs the K3s agent. Vagrant provisions them over
 SSH with its generated key, so `vagrant ssh <machine>` does not ask for a
 password.
 
 ## Start and inspect
 
 ```sh
-cd p1
+cd /workspace/p1
+export VAGRANT_DOTFILE_PATH=/home/vagrant/.vagrant-p1
 LOGIN=yourlogin vagrant up
 vagrant status
 vagrant ssh yourloginS
@@ -20,15 +22,16 @@ same value for all commands. The VM hostnames are `<login>S` and `<login>SW`, at
 lowercase names `<login>s` and `<login>sw`; Kubernetes requires DNS compatible
 node names even though the assignment asks for uppercase suffixes in hostnames.
 
-The base image is Bento's Ubuntu 24.04 box. Canonical stopped publishing new
+The guests use Bento's Ubuntu 24.04 box. Canonical stopped publishing new
 Vagrant boxes starting with Ubuntu 24.04, so this uses a maintained Vagrant box
 source instead of relying on the discontinued `ubuntu/noble64` publication.
 
-The current K3s requirements list 2 CPUs and 2 GB for a server, and 1 CPU and
-512 MB for an agent. The assignment's 1 CPU / 512–1024 MB guidance predates the
-K3s version installed here. On this host, the server API timed out at 1 GB while
-the worker was joining, so the server VM is sized to the current K3s minimum;
-the agent stays at 1 CPU / 1 GB.
+The nested server is allocated 1 CPU and 1.25 GB RAM; the agent gets 1 CPU and
+768 MB. These reduced allocations keep the complete lab within the parent's
+fixed 3 GB. Before starting P1, stop P3's K3d cluster from the parent with
+`k3d cluster stop iot`. Restart it with `k3d cluster start iot` after P1 is
+halted or destroyed. If K3s is slow to become ready, give it time to start
+before joining the worker.
 
 On the server, inspect the cluster:
 
@@ -62,11 +65,14 @@ does not include the server CA hash, so the joining agent cannot authenticate
 the server certificate during bootstrap. Production clusters should distribute
 the full secure node token through a secret manager or another protected
 channel. Finish and destroy P1 before starting P2: both use `192.168.56.110`
-and cannot run together on the same host network.
+inside the parent VM and cannot run together. P3's K3d cluster must also be
+stopped while P1 is running to leave enough memory for the nested guests.
 
 ## Useful commands
 
 ```sh
+export VAGRANT_DOTFILE_PATH=/home/vagrant/.vagrant-p1
+cd /workspace/p1
 vagrant ssh yourloginS
 vagrant ssh yourloginSW
 vagrant provision yourloginSW

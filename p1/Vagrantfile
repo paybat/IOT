@@ -1,5 +1,5 @@
 # P1: one K3s server and one agent. Override LOGIN team login differs.
-login = "hidriouc"
+login = ENV.fetch("LOGIN", "hidriouc").downcase.gsub(/[^a-z0-9-]/, "-")
 raise "LOGIN must not be empty" if login.empty?
 cluster_token = ENV.fetch("K3S_TOKEN", "iot-p1-lab-token-change-me")
 
@@ -11,9 +11,9 @@ Vagrant.configure("2") do |config|
     server.vm.network "private_network", ip: "192.168.56.110"
     server.vm.provider "virtualbox" do |vb|
       vb.name = "#{login}S"
-      # Current K3s docs require 2 CPUs and 2 GiB for a server node.
-      vb.cpus = 2
-      vb.memory = 2048
+      # Constrained nested allocation; run P1 without P3's K3d cluster active.
+      vb.cpus = 1
+      vb.memory = 1280
     end
     server.vm.provision "shell", path: "scripts/install-server.sh", env: {
       "K3S_TOKEN" => cluster_token,
@@ -27,7 +27,7 @@ Vagrant.configure("2") do |config|
     worker.vm.provider "virtualbox" do |vb|
       vb.name = "#{login}SW"
       vb.cpus = 1
-      vb.memory = 1024
+      vb.memory = 768
     end
     worker.vm.provision "shell", path: "scripts/install-agent.sh", env: {
       "K3S_TOKEN" => cluster_token,

@@ -1,25 +1,31 @@
 # P2 — K3s, three apps, and Ingress
 
-P2 uses a separate single-server VM at `192.168.56.110`. Its VM hostname ends
-with uppercase `S`; the Kubernetes node identity uses a lowercase name because
+Run P2 inside the parent VM from `/workspace/p2`. It creates one nested
+single-server VM at
+`192.168.56.110`. Its VM hostname ends with uppercase `S`;
+the Kubernetes node identity uses a lowercase name because
 Kubernetes node names must be DNS compatible. K3s installs its default Traefik
 Ingress controller. Three Deployments run nginx with distinct
 HTML content; `app2` has three replicas. Services give each Deployment a stable
 in-cluster address. Ingress resources route by the HTTP `Host` header; a
 separate default Ingress sends unmatched hosts to `app3`.
 
-The VM allocates 2 CPUs and 2 GB RAM to the K3s server, matching the current
-K3s documented server minimum. This is higher than the original subject's
-older suggested 1 CPU / 1 GB; see the P1 guide for the reason.
+The nested VM allocates 1 CPU and 1.5 GB RAM so it fits inside the parent's
+fixed 3 GB allocation. Before starting P2, stop P3's K3d cluster from the
+parent with `k3d cluster stop iot`; restart it with `k3d cluster start iot`
+after P2 is halted or destroyed.
 
 ## Launch
 
 ```sh
-cd p2
+cd /workspace/p2
+export VAGRANT_DOTFILE_PATH=/home/vagrant/.vagrant-p2
 LOGIN=yourlogin vagrant up
 ```
 
-From the host, send requests with different Host headers:
+The separate state directory keeps P2's Vagrant metadata separate from P1.
+
+From the parent VM, send requests with different Host headers:
 
 ```sh
 curl -H 'Host: app1.com' http://192.168.56.110/
@@ -34,6 +40,8 @@ URLs. The curl form makes the Host-header behavior explicit.
 Inspect from the VM:
 
 ```sh
+export VAGRANT_DOTFILE_PATH=/home/vagrant/.vagrant-p2
+cd /workspace/p2
 vagrant ssh yourloginS
 sudo k3s kubectl get deployments,pods,services,ingress -o wide
 sudo k3s kubectl describe ingress apps
