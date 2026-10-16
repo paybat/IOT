@@ -19,11 +19,12 @@ after P2 is halted or destroyed.
 
 ```sh
 cd /workspace/p2
-export VAGRANT_DOTFILE_PATH=/home/vagrant/.vagrant-p2
-LOGIN=yourlogin vagrant up
+LOGIN=yourlogin ./scripts/vagrant.sh up
 ```
 
-The separate state directory keeps P2's Vagrant metadata separate from P1.
+The launcher selects P2's state directory (`/home/vagrant/.vagrant-p2`) so
+the same command works for `status`, `ssh`, `halt`, and `destroy` without
+manually exporting `VAGRANT_DOTFILE_PATH`.
 
 From the parent VM, send requests with different Host headers:
 
@@ -40,9 +41,8 @@ URLs. The curl form makes the Host-header behavior explicit.
 Inspect from the VM:
 
 ```sh
-export VAGRANT_DOTFILE_PATH=/home/vagrant/.vagrant-p2
 cd /workspace/p2
-vagrant ssh yourloginS
+./scripts/vagrant.sh ssh yourloginS
 sudo k3s kubectl get deployments,pods,services,ingress -o wide
 sudo k3s kubectl describe ingress apps
 sudo k3s kubectl get pods -n kube-system
@@ -79,5 +79,5 @@ nginx image on Docker Hub.](https://hub.docker.com/_/nginx/tags)
 5. Delete one app2 Pod and watch the Deployment create a replacement.
 
 Apply changed manifests from the VM with
-`sudo k3s kubectl apply -f /vagrant/confs/`. Tear down with `vagrant destroy`
-when finished.
+`sudo k3s kubectl apply -f /vagrant/confs/`. Tear down with
+`./scripts/vagrant.sh destroy` when finished.

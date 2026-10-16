@@ -3,17 +3,16 @@
 Run these commands inside the parent VM, from `/workspace/p1`. This part
 creates two nested Ubuntu VMs on a private network. The `S` machine runs the
 K3s control plane; `SW` runs the K3s agent. Vagrant provisions them over
-SSH with its generated key, so `vagrant ssh <machine>` does not ask for a
-password.
+SSH with its generated key, so `./scripts/vagrant.sh ssh <machine>` does not
+ask for a password.
 
 ## Start and inspect
 
 ```sh
 cd /workspace/p1
-export VAGRANT_DOTFILE_PATH=/home/vagrant/.vagrant-p1
-LOGIN=yourlogin vagrant up
-vagrant status
-vagrant ssh yourloginS
+LOGIN=yourlogin ./scripts/vagrant.sh up
+./scripts/vagrant.sh status
+./scripts/vagrant.sh ssh yourloginS
 ```
 
 The default login is `hidriouc`. Replace it with the team login and use that
@@ -71,13 +70,12 @@ stopped while P1 is running to leave enough memory for the nested guests.
 ## Useful commands
 
 ```sh
-export VAGRANT_DOTFILE_PATH=/home/vagrant/.vagrant-p1
 cd /workspace/p1
-vagrant ssh yourloginS
-vagrant ssh yourloginSW
-vagrant provision yourloginSW
-vagrant halt
-vagrant destroy
+./scripts/vagrant.sh ssh yourloginS
+./scripts/vagrant.sh ssh yourloginSW
+./scripts/vagrant.sh provision yourloginSW
+./scripts/vagrant.sh halt
+./scripts/vagrant.sh destroy
 ```
 
 `destroy` deletes the VMs and their local state. Recreating them provisions a
