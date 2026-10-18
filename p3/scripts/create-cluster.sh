@@ -1,79 +1,48 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -e
 
-cluster_name="${K3D_CLUSTER_NAME:-iot}"
-repo_url="${GIT_REPO_URL:-}"
-script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd -- "$script_dir/../.." && pwd)"
+CLUSTER=iot
+REPO_URL="${GIT_REPO_URL:?Set GIT_REPO_URL to your public GitHub repository URL}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-if ! docker info >/dev/null 2>&1; then
-  echo "Docker is unavailable to this user. Run install-tools.sh, then log out and back in (or use a Docker-enabled session)." >&2
-  exit 1
+# Check required tools and the public repository
+command -v docker >/dev/null
+command -v k3d >/dev/null
+command -v kubectl >/dev/null
+git ls-remote "$REPO_URL" HEAD >/dev/null
+
+# Create cluster
+if ! k3d cluster list -o json | grep -Eq '"name"[[:space:]]*:[[:space:]]*"iot"'; then
+    k3d cluster create "$CLUSTER" --agents 1 -p "8888:30088@server:0"
 fi
+kubectl config use-context "k3d-$CLUSTER"
 
-if [[ -z "$repo_url" ]]; then
-  echo "Set GIT_REPO_URL to the public HTTPS URL of your GitHub repository, e.g.:" >&2
-  echo "  GIT_REPO_URL=https://github.com/LOGIN/REPOSITORY.git bash p3/scripts/create-cluster.sh" >&2
-  exit 1
-fi
-
-if [[ ! "$repo_url" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]]; then
-  echo "GIT_REPO_URL must be a public HTTPS GitHub repository URL, optionally ending in .git." >&2
-  exit 1
-fi
-
-if ! git ls-remote "$repo_url" HEAD >/dev/null 2>&1; then
-  echo "Repository must be public and accessible." >&2
-  exit 1
-fi
-
-for tool in k3d kubectl; do
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "Required command '$tool' was not found. Run p3/scripts/install-tools.sh first." >&2
-    exit 1
-  fi
-done
-
-if ! k3d cluster list -o json | grep -Eq '"name"[[:space:]]*:[[:space:]]*"'"$cluster_name"'"'; then
-  k3d cluster create "$cluster_name" --agents 1 -p "8888:30088@server:0"
-fi
-
-kubectl config use-context "k3d-${cluster_name}"
+# Install Argo CD
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply --server-side --force-conflicts -n argocd \
-  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-# The first run has to pull several large public images into a fresh VM. Give
-# that cold start enough time on slower hosts and networks.
-kubectl wait --for=condition=Available deployment --all -n argocd --timeout=900s
+kubectl apply --server-side -n argocd \
+    -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl wait --for=condition=Available deployment --all \
+    -n argocd --timeout=900s
 
-sed "s|__GIT_REPO_URL__|${repo_url}|g" "$repo_root/p3/confs/argocd/application.yaml" | kubectl apply -f -
+# Deploy app and wait for Argo CD to sync it before checking its namespace
+sed "s|__GIT_REPO_URL__|$REPO_URL|g" \
+    "$REPO_ROOT/p3/confs/argocd/application.yaml" | kubectl apply -f -
+kubectl wait --for=jsonpath='{.status.sync.status}'=Synced \
+    application/playground -n argocd --timeout=600s
+kubectl wait --for=jsonpath='{.status.health.status}'=Healthy \
+    application/playground -n argocd --timeout=600s
+kubectl wait --for=condition=Available deployment/playground \
+    -n dev --timeout=600s
 
-# Registering an Application is asynchronous. Wait until Argo CD has fetched
-# the repository and completed its first sync before looking for its workload.
-wait_for_app_status() {
-  local jsonpath="$1" expected="$2" description="$3" deadline=$((SECONDS + 600)) value
-  while (( SECONDS < deadline )); do
-    value="$(kubectl get application playground -n argocd -o "jsonpath=${jsonpath}" 2>/dev/null || true)"
-    if [[ "$value" == "$expected" ]]; then
-      return 0
-    fi
-    sleep 5
-  done
-  echo "Timed out waiting for Argo CD Application to become ${description}." >&2
-  kubectl get application playground -n argocd -o yaml >&2 || true
-  return 1
-}
-
-wait_for_app_status '{.status.sync.status}' Synced 'Synced'
-wait_for_app_status '{.status.health.status}' Healthy 'Healthy'
-kubectl wait --for=condition=Available deployment/playground -n dev --timeout=600s
-
-# Keep the Argo CD UI reachable through the parent VM's forwarded port.
-if ! pgrep -af 'kubectl port-forward --address 0.0.0.0 -n argocd svc/argocd-server 8080:443' >/dev/null; then
-  nohup kubectl port-forward --address 0.0.0.0 -n argocd svc/argocd-server 8080:443 \
-    >/tmp/iot-argocd-port-forward.log 2>&1 </dev/null &
+# Expose Argo CD UI
+if ! pgrep -f 'kubectl port-forward.*argocd-server' >/dev/null; then
+    nohup kubectl port-forward --address 0.0.0.0 \
+        -n argocd svc/argocd-server 8080:443 \
+        >/tmp/argocd.log 2>&1 &
 fi
 
 kubectl get applications -n argocd
 kubectl get pods,services -n dev
-echo "App endpoint: http://localhost:8888/"
+echo "App: http://localhost:8888/"
+echo "Argo CD UI: https://localhost:8080/"
