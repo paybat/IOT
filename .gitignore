@@ -7,3 +7,6 @@ p3/.vagrant/
 
 # Ephemeral cluster join credentials, if generated locally .
 p1/.k3s-token
+
+# Local clone of the GitLab GitOps repository; keep it separate from this repo.
+iot-hidriouc/

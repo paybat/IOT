@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab
+  namespace: gitlab
+spec:
+  clusterIP: None
+  selector:
+    app: gitlab
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: ssh
+      port: 22
+      targetPort: 22
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gitlab
+  namespace: gitlab
+spec:
+  serviceName: gitlab
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab
+  template:
+    metadata:
+      labels:
+        app: gitlab
+    spec:
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: gitlab
+          image: gitlab/gitlab-ce:19.5.0-ce.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GITLAB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-root
+                  key: password
+            - name: GITLAB_OMNIBUS_CONFIG
+              value: |
+                external_url 'http://gitlab.gitlab.svc.cluster.local'
+                gitlab_rails['initial_root_password'] = ENV['GITLAB_ROOT_PASSWORD']
+                prometheus_monitoring['enable'] = false
+                gitlab_kas['enable'] = false
+                registry['enable'] = false
+                gitlab_pages['enable'] = false
+                puma['worker_processes'] = 2
+                sidekiq['max_concurrency'] = 5
+                postgresql['shared_buffers'] = '128MB'
+                puma['per_worker_max_memory_mb'] = 1200
+          ports:
+            - name: http
+              containerPort: 80
+            - name: ssh
+              containerPort: 22
+          startupProbe:
+            httpGet:
+              path: /users/sign_in
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 240
+          readinessProbe:
+            httpGet:
+              path: /users/sign_in
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /users/sign_in
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 6Gi
+          volumeMounts:
+            - name: gitlab-data
+              mountPath: /var/opt/gitlab
+  volumeClaimTemplates:
+    - metadata:
+        name: gitlab-data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 10Gi

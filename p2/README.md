@@ -64,7 +64,7 @@ client -> VM:80 -> Traefik Ingress -> host rule/default -> Service -> ready Pod(
 Kubernetes applies these files declaratively: YAML describes desired state and
 controllers reconcile actual state toward it. ConfigMaps provide each nginx
 container's page without building three separate images. The image tag is
-versioned (`nginx:1.30.5-alpine3.24`) so a later upstream release does not
+versioned (`nginx:1.31.7-alpine3.24`) so a later upstream release does not
 silently change this lab's chosen version. [The tag is listed by the official
 nginx image on Docker Hub.](https://hub.docker.com/_/nginx/tags)
 

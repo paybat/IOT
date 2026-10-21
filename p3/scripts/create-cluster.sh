@@ -2,9 +2,18 @@
 set -e
 
 CLUSTER=iot
-REPO_URL="${GIT_REPO_URL:?Set GIT_REPO_URL to your public GitHub repository URL}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_URL="${GIT_REPO_URL:-$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null || true)}"
+
+if [ -z "$REPO_URL" ]; then
+    echo "Set GIT_REPO_URL or configure a GitHub origin remote." >&2
+    exit 1
+fi
+case "$REPO_URL" in
+    https://github.com/*) ;;
+    *) echo "Argo CD needs a public HTTPS GitHub URL; got: $REPO_URL" >&2; exit 1 ;;
+esac
 
 # Check required tools and the public repository
 command -v docker >/dev/null

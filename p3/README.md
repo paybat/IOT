@@ -20,11 +20,11 @@ the different host and guest user IDs.
 
 ## 1. Publish the repository
 
-Create a **public** GitHub repository whose name contains a team member's
-login, then push this repository's contents. Argo CD needs public read access
-so no deploy key or token is required. The GitHub URL used below must point
-to that repository, for example
-`https://github.com/LOGIN/iot-LOGIN.git`.
+The project is currently pushed to the public origin
+`https://github.com/paybat/IOT.git`. The subject requires the repository name
+to contain a team member's login; if `IOT` does not meet your team's login,
+create or rename the repository accordingly and update `origin`. Argo CD needs
+public read access, so no deploy key or token is required.
 
 ## 2. Start the P3 VM and install tools
 
@@ -51,13 +51,15 @@ session after provisioning if `docker info` reports a permission error.
 
 ## 3. Create the cluster and deploy
 
-Inside the VM, run this from `/workspace`, replacing the URL with your public
-repository:
+Inside the VM, run this from `/workspace`. The script reads the URL from the
+Git `origin` remote:
 
 ```sh
-GIT_REPO_URL=https://github.com/LOGIN/iot-LOGIN.git \
-  bash p3/scripts/create-cluster.sh
+bash p3/scripts/create-cluster.sh
 ```
+
+If the URL differs from `origin`, pass the public URL explicitly with
+`GIT_REPO_URL=https://github.com/LOGIN/iot-LOGIN.git`.
 
 The cluster is named `iot` by default and has one server and one agent. K3d
 maps VM port `8888` to the Kubernetes NodePort `30088`. Vagrant forwards that
@@ -80,7 +82,9 @@ From the host machine, check the app through the parent's forwarded port:
 curl http://localhost:8888/
 ```
 
-The first successful response should contain `"message":"v1"`. If the
+The current committed manifest selects `wil42/playground:v2`, so the successful
+response should contain `"message":"v2"`. The repository history contains
+the earlier v1 state and the later v2 update. If the
 application is not ready yet, wait for the `playground` Application to become
 `Synced` and `Healthy`, then retry.
 
@@ -106,9 +110,9 @@ instance will remain accessible beyond the exercise.
 
 ## 5. Demonstrate GitOps version change
 
-Edit `p3/confs/app/deployment.yaml`, change `wil42/playground:v1` to
-`wil42/playground:v2`, commit, and push to the public GitHub repository. Argo CD
-polls the repository and applies the new desired state automatically. Observe
+The repository currently selects v2. To demonstrate a live update, change the
+tag to `v1`, commit, and push. Argo CD polls the repository and applies that
+state. Then change it back to `v2`, commit, and push again. Observe
 `kubectl get applications -n argocd -w`, then verify:
 
 ```sh
@@ -119,8 +123,8 @@ kubectl get deployment playground -n dev \
 Run `curl http://localhost:8888/` from the host terminal to confirm the new
 version.
 
-The image should be `wil42/playground:v2` and the response should identify
-`v2`. To return to v1, revert the commit or change the tag and push again.
+After the second push, the image should be `wil42/playground:v2` and the
+response should identify `v2`.
 
 ## How the pieces fit
 
